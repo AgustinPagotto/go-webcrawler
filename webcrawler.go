@@ -17,7 +17,7 @@ func main() {
 		log.Fatalf("there was an error trying to get to the url %s", err)
 	}
 	defer resp.Body.Close()
-	var textInsideATags []string
+	textAndLinksMap := make(map[string]string)
 	z := html.NewTokenizer(resp.Body)
 	for {
 		tokenType := z.Next()
@@ -27,21 +27,21 @@ func main() {
 		if tokenType == html.StartTagToken {
 			token := z.Token()
 			if token.Data == "a" {
-				nextToken := z.Next()
+				var link string
 				tokenAttributes := token.Attr
 				for _, value := range tokenAttributes {
 					if value.Key == "href" {
-						//fmt.Println(value.Val)
 						anchorUrl, _ := url.Parse(value.Val)
-						fmt.Println(baseUrl.ResolveReference(anchorUrl))
+						link = baseUrl.ResolveReference(anchorUrl).String()
 					}
 				}
-				if nextToken == html.TextToken {
+				nextToken := z.Next()
+				if nextToken == html.TextToken && link != "" {
 					trimmedText := strings.TrimSpace(string(z.Text()))
-					textInsideATags = append(textInsideATags, trimmedText)
+					textAndLinksMap[trimmedText] = link
+					fmt.Println(textAndLinksMap)
 				}
 			}
 		}
-		//fmt.Println(len(textInsideATags))
 	}
 }
