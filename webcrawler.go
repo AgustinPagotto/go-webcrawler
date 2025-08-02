@@ -29,8 +29,7 @@ func (p *pageData) printFormatedMap() {
 }
 
 func main() {
-	//pageBeingCrawled := pageDataGenerator("https://books.toscrape.com")
-	pageBeingCrawled := pageDataGenerator("https://en.wikipedia.org/wiki/Web_crawler")
+	pageBeingCrawled := pageDataGenerator("https://books.toscrape.com")
 	baseUrl, err := url.Parse(pageBeingCrawled.url)
 	if err != nil {
 		log.Fatalf("there was an error trying to parse the baseUrl: %s", err)
