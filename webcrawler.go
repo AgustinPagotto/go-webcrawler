@@ -9,18 +9,37 @@ import (
 	"strings"
 )
 
+type pageData struct {
+	url          string
+	textAndLinks map[string]string
+}
+
+func pageDataGenerator(url string) *pageData {
+	p := pageData{url: url, textAndLinks: make(map[string]string)}
+	return &p
+}
+
+func (p *pageData) printFormatedMap() {
+	if len(p.textAndLinks) == 0 {
+		fmt.Println("the data of links and texts is empty")
+	}
+	for k, v := range p.textAndLinks {
+		fmt.Printf("%s \t \t %s\n", k, v)
+	}
+}
+
 func main() {
-	var urlToCrawl string = "https://books.toscrape.com"
-	baseUrl, err := url.Parse(urlToCrawl)
+	//pageBeingCrawled := pageDataGenerator("https://books.toscrape.com")
+	pageBeingCrawled := pageDataGenerator("https://en.wikipedia.org/wiki/Web_crawler")
+	baseUrl, err := url.Parse(pageBeingCrawled.url)
 	if err != nil {
 		log.Fatalf("there was an error trying to parse the baseUrl: %s", err)
 	}
-	resp, err := http.Get(urlToCrawl)
+	resp, err := http.Get(pageBeingCrawled.url)
 	if err != nil {
 		log.Fatalf("there was an error trying to perform a get on the baseUrl %s", err)
 	}
 	defer resp.Body.Close()
-	textAndLinksMap := make(map[string]string)
 	z := html.NewTokenizer(resp.Body)
 	for {
 		tokenType := z.Next()
@@ -46,11 +65,12 @@ func main() {
 				if nextToken == html.TextToken && link != "" {
 					trimmedText := strings.TrimSpace(string(z.Text()))
 					if trimmedText != "" {
-						textAndLinksMap[trimmedText] = link
+						pageBeingCrawled.textAndLinks[trimmedText] = link
 					}
 				}
 			}
 		}
 	}
-	fmt.Println(len(textAndLinksMap))
+	fmt.Println(len(pageBeingCrawled.textAndLinks))
+	pageBeingCrawled.printFormatedMap()
 }
