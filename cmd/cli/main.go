@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/AgustinPagotto/go-webcrawler/internal/crawl"
 	"log"
 	"net/url"
 )
@@ -10,7 +11,6 @@ import (
 func main() {
 	var urlFromCli string
 	var depthCrawl int
-
 	flag.StringVar(&urlFromCli, "url", "http://google.com", "Url to be Crawled")
 	flag.StringVar(&urlFromCli, "u", "http://google.com", "Url to be Crawled")
 	flag.IntVar(&depthCrawl, "depth", 1, "Depth of the crawl")
@@ -26,9 +26,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("url inserted is invalid: %s", err)
 	}
-	fmt.Println(
-		"url:", parsedUrl.String(),
-		"err:", err,
-		"depth:", depthCrawl,
-	)
+	page, err := crawl.CrawlPage(parsedUrl.String())
+	if err != nil {
+		fmt.Printf("Error crawling page: %s\n", err)
+	}
+	fmt.Println(page)
 }
