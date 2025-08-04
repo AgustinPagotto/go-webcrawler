@@ -28,7 +28,7 @@ func main() {
 	}
 	page, err := crawl.CrawlPage(parsedUrl.String())
 	if err != nil {
-		fmt.Printf("Error crawling page: %s\n", err)
+		log.Fatalf("Error crawling page: %s\n", err)
 	}
 	fmt.Println(page)
 }
