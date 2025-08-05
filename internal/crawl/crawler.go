@@ -30,11 +30,11 @@ func (p *PageData) String() string {
 }
 
 func CrawlPage(urlToParse string) (*PageData, error) {
-	pageBeingCrawled := newPageData(urlToParse)
-	baseUrl, err := url.Parse(pageBeingCrawled.URL)
+	baseUrl, err := url.Parse(urlToParse)
 	if err != nil {
 		return nil, fmt.Errorf("there was an error trying to parse the baseUrl: %s", err)
 	}
+	pageBeingCrawled := newPageData(urlToParse)
 	resp, err := http.Get(pageBeingCrawled.URL)
 	if err != nil {
 		return nil, fmt.Errorf("there was an error trying to perform a get on the baseUrl %s", err)
