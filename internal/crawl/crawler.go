@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type PageData struct {
@@ -31,11 +32,14 @@ func (p *PageData) String() string {
 
 func CrawlPage(urlToParse string) (*PageData, error) {
 	baseUrl, err := url.Parse(urlToParse)
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
 	if err != nil {
 		return nil, fmt.Errorf("there was an error trying to parse the baseUrl: %s", err)
 	}
 	pageBeingCrawled := newPageData(urlToParse)
-	resp, err := http.Get(pageBeingCrawled.URL)
+	resp, err := client.Get(pageBeingCrawled.URL)
 	if err != nil {
 		return nil, fmt.Errorf("there was an error trying to perform a get on the baseUrl %s", err)
 	}
