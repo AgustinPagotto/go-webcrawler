@@ -65,7 +65,6 @@ func EnterNewChilds(db *sql.DB, url string, child_urls []string) error {
 	} else if err != nil {
 		return fmt.Errorf("db query failed: %w", err)
 	}
-	fmt.Printf("We found a match for the url! the id of the site is %d", id)
 	sqlQuery = "INSERT INTO child_webs (web_crawled_id, url) VALUES (?,?);"
 	for _, v := range child_urls {
 		_, err = db.Exec(sqlQuery, id, v)

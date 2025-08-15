@@ -18,3 +18,13 @@ func ValidateAndParseUrl(urlToValidate string) (*url.URL, error) {
 	res.Host = strings.ToLower(res.Host)
 	return res, nil
 }
+
+func ValidateFlags(url string, depth int) error {
+	if depth < 1 {
+		return fmt.Errorf("The depth of crawl can't be less than 1")
+	}
+	if url == "" {
+		return fmt.Errorf("Please provide a non-empty url")
+	}
+	return nil
+}
