@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/AgustinPagotto/go-webcrawler/internal/crawl"
+	"github.com/AgustinPagotto/go-webcrawler/internal/db"
 	"github.com/AgustinPagotto/go-webcrawler/internal/validate"
 	"log"
 )
@@ -28,5 +29,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error crawling page: %s\n", err)
 	}
-	fmt.Println(page)
+	fmt.Println(page.Status, len(page.TextAndLinks))
+	DB, err := db.OpenConToDB()
+	if err != nil {
+		log.Fatalf("Error openning db: %s\n", err)
+	}
+	err = db.InitiateDB(DB)
+	if err != nil {
+		log.Fatalf("Error openning db: %s\n", err)
+	}
+	err = db.EnterNewUrl(DB, page.URL, page.Status, len(page.TextAndLinks))
+	if err != nil {
+		log.Fatalf("Error inserting new url into db: %s\n", err)
+	}
+	if page.TextAndLinks != nil {
+		db.EnterNewChilds(DB, page.URL, page.TextAndLinks)
+	}
 }

@@ -12,11 +12,12 @@ import (
 
 type PageData struct {
 	URL          string
+	Status       int
 	TextAndLinks map[string]string
 }
 
-func newPageData(url string) *PageData {
-	p := PageData{URL: url, TextAndLinks: make(map[string]string)}
+func newPageData(url string, status int) *PageData {
+	p := PageData{URL: url, Status: status, TextAndLinks: make(map[string]string)}
 	return &p
 }
 
@@ -39,12 +40,17 @@ func CrawlPage(urlToParse string) (*PageData, error) {
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 	}
-	pageBeingCrawled := newPageData(urlToParse)
+	pageBeingCrawled := newPageData(urlToParse, 0)
 	resp, err := client.Get(pageBeingCrawled.URL)
 	if err != nil {
 		return nil, fmt.Errorf("there was an error trying to perform a get on the baseUrl %s", err)
 	}
 	defer resp.Body.Close()
+	pageBeingCrawled.Status = resp.StatusCode
+	if resp.StatusCode != http.StatusOK {
+		fmt.Print("The url returned a not ok status")
+		return pageBeingCrawled, nil
+	}
 	z := html.NewTokenizer(resp.Body)
 	for {
 		tokenType := z.Next()

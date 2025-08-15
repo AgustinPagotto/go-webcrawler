@@ -63,7 +63,10 @@ func TestEnterNewChilds(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 	url := "www.google.com"
-	child_webs := []string{"www.google.com/images", "www.duckduckgo.com"}
+	child_webs := map[string]string{
+		"images": "www.google.com/images",
+		"duck":   "www.duckduckgo.com",
+	}
 	err := EnterNewUrl(db, url, 200, 5)
 	if err != nil {
 		t.Fatal(err)

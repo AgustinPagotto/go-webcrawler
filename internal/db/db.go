@@ -35,6 +35,7 @@ func InitiateDB(db *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS child_webs(
 		id INTEGER NOT NULL PRIMARY KEY,
 		web_crawled_id INTEGER NOT NULL,
+		url_text TEXT,
 		url TEXT,
 		FOREIGN KEY (web_crawled_id) REFERENCES webs_crawled(id) ON DELETE CASCADE
 	);
@@ -56,7 +57,7 @@ func EnterNewUrl(db *sql.DB, url string, status int, childs int) error {
 	return nil
 }
 
-func EnterNewChilds(db *sql.DB, url string, child_urls []string) error {
+func EnterNewChilds(db *sql.DB, url string, child_urls map[string]string) error {
 	var id int
 	sqlQuery := "SELECT DISTINCT id FROM webs_crawled WHERE url = ?;"
 	err := db.QueryRow(sqlQuery, url).Scan(&id)
@@ -65,9 +66,9 @@ func EnterNewChilds(db *sql.DB, url string, child_urls []string) error {
 	} else if err != nil {
 		return fmt.Errorf("db query failed: %w", err)
 	}
-	sqlQuery = "INSERT INTO child_webs (web_crawled_id, url) VALUES (?,?);"
-	for _, v := range child_urls {
-		_, err = db.Exec(sqlQuery, id, v)
+	sqlQuery = "INSERT INTO child_webs (web_crawled_id, url_text, url) VALUES (?,?,?);"
+	for url_text, url := range child_urls {
+		_, err = db.Exec(sqlQuery, id, url_text, url)
 		if err != nil {
 			return fmt.Errorf("couldn't insert the url: \n%v", err)
 		}
