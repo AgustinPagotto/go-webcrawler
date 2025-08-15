@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func openConToDB() (*sql.DB, error) {
+func OpenConToDB() (*sql.DB, error) {
 	db, err := sql.Open("sqlite3", "./crawl.db")
 	if err != nil {
 		return nil, fmt.Errorf("Error trying to connect to the db: \n%v", err)
@@ -81,7 +81,7 @@ func WasUrlCrawled(db *sql.DB, url string) (bool, error) {
 	sqlQuery := "SELECT DISTINCT id FROM webs_crawled WHERE url = ?;"
 	err := db.QueryRow(sqlQuery, url).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, fmt.Errorf("didn't find the url: \n%v", err)
+		return false, nil
 	} else if err != nil {
 		return false, fmt.Errorf("db query failed: %w", err)
 	}
