@@ -2,6 +2,7 @@ package crawl
 
 import (
 	"fmt"
+	"github.com/AgustinPagotto/go-webcrawler/internal/validate"
 	"golang.org/x/net/html"
 	"net/http"
 	"net/url"
@@ -31,12 +32,12 @@ func (p *PageData) String() string {
 }
 
 func CrawlPage(urlToParse string) (*PageData, error) {
-	baseUrl, err := url.Parse(urlToParse)
+	baseUrl, err := validate.ValidateAndParseUrl(urlToParse)
+	if err != nil {
+		return nil, fmt.Errorf("error validating the url: %s", err)
+	}
 	client := &http.Client{
 		Timeout: 30 * time.Second,
-	}
-	if err != nil {
-		return nil, fmt.Errorf("there was an error trying to parse the baseUrl: %s", err)
 	}
 	pageBeingCrawled := newPageData(urlToParse)
 	resp, err := client.Get(pageBeingCrawled.URL)
