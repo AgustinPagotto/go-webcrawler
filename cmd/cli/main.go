@@ -1,6 +1,8 @@
 package main
 
 import (
+	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
 	"github.com/AgustinPagotto/go-webcrawler/internal/crawl"
@@ -25,25 +27,41 @@ func main() {
 	if err := validate.ValidateFlags(urlToCrawl, depthCrawl); err != nil {
 		log.Fatal(err)
 	}
-	page, err := crawl.CrawlPage(urlToCrawl)
-	if err != nil {
-		log.Fatalf("Error crawling page: %s\n", err)
-	}
-	fmt.Println(page.Status, len(page.TextAndLinks))
 	DB, err := db.OpenConToDB()
 	if err != nil {
 		log.Fatalf("Error openning db: %s\n", err)
 	}
 	defer DB.Close()
-	err = db.InitiateDB(DB)
-	if err != nil {
-		log.Fatalf("Error adding tables to db: %s\n", err)
+	res, err := db.IsUrlOnDb(DB, urlToCrawl)
+	if res == nil && !errors.Is(err, sql.ErrNoRows) {
+		log.Fatal(err)
+	} else if err != nil {
+		fmt.Print(err)
 	}
-	err = db.EnterNewUrl(DB, page.URL, page.Status, len(page.TextAndLinks))
-	if err != nil {
-		log.Fatalf("Error inserting new url into db: %s\n", err)
-	}
-	if page.TextAndLinks != nil {
-		db.EnterNewChilds(DB, page.URL, page.TextAndLinks)
+	if res != nil {
+		fmt.Print("res: ", res.Status, res.URL, len(res.TextAndLinks))
+	} else {
+		page, err := crawl.CrawlPage(urlToCrawl)
+
+		if err != nil {
+			log.Fatalf("Error crawling page: %s\n", err)
+		}
+
+		fmt.Println(page.Status, len(page.TextAndLinks))
+		err = db.InitiateDB(DB)
+
+		if err != nil {
+			log.Fatalf("Error adding tables to db: %s\n", err)
+		}
+
+		err = db.EnterNewUrl(DB, page)
+
+		if err != nil {
+			log.Fatalf("Error inserting new url into db: %s\n", err)
+		}
+
+		if page.TextAndLinks != nil {
+			db.EnterNewChilds(DB, page)
+		}
 	}
 }

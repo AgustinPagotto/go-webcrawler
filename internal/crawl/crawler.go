@@ -2,6 +2,7 @@ package crawl
 
 import (
 	"fmt"
+	"github.com/AgustinPagotto/go-webcrawler/internal/models"
 	"github.com/AgustinPagotto/go-webcrawler/internal/validate"
 	"golang.org/x/net/html"
 	"net/http"
@@ -10,29 +11,7 @@ import (
 	"time"
 )
 
-type PageData struct {
-	URL          string
-	Status       int
-	TextAndLinks map[string]string
-}
-
-func newPageData(url string, status int) *PageData {
-	p := PageData{URL: url, Status: status, TextAndLinks: make(map[string]string)}
-	return &p
-}
-
-func (p *PageData) String() string {
-	if len(p.TextAndLinks) == 0 {
-		return ""
-	}
-	var b strings.Builder
-	for k, v := range p.TextAndLinks {
-		b.WriteString(fmt.Sprintf("%s \t \t %s\n", k, v))
-	}
-	return b.String()
-}
-
-func CrawlPage(urlToParse string) (*PageData, error) {
+func CrawlPage(urlToParse string) (*models.PageData, error) {
 	baseUrl, err := validate.ValidateAndParseUrl(urlToParse)
 	if err != nil {
 		return nil, fmt.Errorf("error validating the url: %s", err)
@@ -40,7 +19,7 @@ func CrawlPage(urlToParse string) (*PageData, error) {
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 	}
-	pageBeingCrawled := newPageData(urlToParse, 0)
+	pageBeingCrawled := models.NewPageData(urlToParse, 0)
 	resp, err := client.Get(pageBeingCrawled.URL)
 	if err != nil {
 		return nil, fmt.Errorf("there was an error trying to perform a get on the baseUrl %s", err)

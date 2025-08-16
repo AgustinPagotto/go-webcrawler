@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
-	_ "github.com/mattn/go-sqlite3"
 	"testing"
+
+	"github.com/AgustinPagotto/go-webcrawler/internal/models"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func setupConTestDB(t *testing.T) *sql.DB {
@@ -47,7 +49,10 @@ func TestInitiateDB(t *testing.T) {
 func TestEnterNewUrl(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
-	err := EnterNewUrl(db, "www.google.com", 200, 20)
+	url := "www.google.com"
+	pgData := models.NewPageData(url, 200)
+	pgData.Status = 200
+	err := EnterNewUrl(db, pgData)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,11 +72,14 @@ func TestEnterNewChilds(t *testing.T) {
 		"images": "www.google.com/images",
 		"duck":   "www.duckduckgo.com",
 	}
-	err := EnterNewUrl(db, url, 200, 5)
+	pgData := models.NewPageData(url, 200)
+	pgData.TextAndLinks = child_webs
+	pgData.Status = 200
+	err := EnterNewUrl(db, pgData)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = EnterNewChilds(db, url, child_webs)
+	err = EnterNewChilds(db, pgData)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +98,8 @@ func TestWasUrlCrawled(t *testing.T) {
 	defer db.Close()
 	url := "www.google.com"
 	urlNotCrawled := "www.yahoo.com"
-	err := EnterNewUrl(db, url, 200, 5)
+	pgData := models.NewPageData(url, 200)
+	err := EnterNewUrl(db, pgData)
 	if err != nil {
 		t.Fatal(err)
 	}
