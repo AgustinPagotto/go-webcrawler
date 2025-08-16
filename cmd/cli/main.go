@@ -34,9 +34,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error openning db: %s\n", err)
 	}
+	defer DB.Close()
 	err = db.InitiateDB(DB)
 	if err != nil {
-		log.Fatalf("Error openning db: %s\n", err)
+		log.Fatalf("Error adding tables to db: %s\n", err)
 	}
 	err = db.EnterNewUrl(DB, page.URL, page.Status, len(page.TextAndLinks))
 	if err != nil {
