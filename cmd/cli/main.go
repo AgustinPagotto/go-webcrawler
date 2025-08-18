@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"time"
 
@@ -25,7 +26,7 @@ func receiveFlags() (string, int) {
 
 func main() {
 	var needsRecrawl bool
-	const recrawlAfter = 7 * 24 * time.Hour
+	const recrawlAfter = 1 * 24 * time.Hour
 	urlToCrawl, depthCrawl := receiveFlags()
 	if err := validate.ValidateFlags(urlToCrawl, depthCrawl); err != nil {
 		log.Fatal(err)
@@ -46,6 +47,7 @@ func main() {
 		log.Println("the page is not in our DB: ", err)
 	} else if res != nil {
 		if time.Since(res.LastCrawled) > recrawlAfter {
+			fmt.Print("needs recrawl")
 			needsRecrawl = true
 		}
 	}
@@ -54,9 +56,21 @@ func main() {
 		if err != nil {
 			log.Fatalf("Error crawling page: %s\n", err)
 		}
-		err = db.EnterNewUrl(dbConn, res)
-		if err != nil {
-			log.Fatalf("Error inserting new url into db: %s\n", err)
+		if needsRecrawl {
+			fmt.Print("updating recrawl")
+			err = db.UpdateLastCrawled(dbConn, res.URL)
+			if err != nil {
+				log.Fatalf("Error trying to update the date on the url %s\n", err)
+			}
+			err = db.FilterOldChilds(dbConn, res)
+			if err != nil {
+				log.Fatalf("Error trying to update the date on the url %s\n", err)
+			}
+		} else {
+			err = db.EnterNewUrl(dbConn, res)
+			if err != nil {
+				log.Fatalf("Error inserting new url into db: %s\n", err)
+			}
 		}
 		if res.TextAndLinks != nil {
 			db.EnterNewChilds(dbConn, res)
