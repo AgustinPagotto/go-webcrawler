@@ -17,12 +17,7 @@ func NewPageData(url string, status int) *PageData {
 }
 
 func (p *PageData) String() string {
-	if len(p.TextAndLinks) == 0 {
-		return ""
-	}
 	var b strings.Builder
-	for k, v := range p.TextAndLinks {
-		b.WriteString(fmt.Sprintf("%s \t \t %s\n", k, v))
-	}
+	b.WriteString(fmt.Sprintf("%s \t %d \t %d", p.URL, p.Status, len(p.TextAndLinks)))
 	return b.String()
 }

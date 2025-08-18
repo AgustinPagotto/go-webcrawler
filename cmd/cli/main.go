@@ -29,39 +29,31 @@ func main() {
 	}
 	DB, err := db.OpenConToDB()
 	if err != nil {
-		log.Fatalf("Error openning db: %s\n", err)
+		log.Fatalf("Error openning connection to the db: %s\n", err)
 	}
 	defer DB.Close()
 	res, err := db.IsUrlOnDb(DB, urlToCrawl)
 	if res == nil && !errors.Is(err, sql.ErrNoRows) {
 		log.Fatal(err)
 	} else if err != nil {
-		fmt.Print(err)
+		fmt.Println("the page is not in our DB: ", err)
 	}
-	if res != nil {
-		fmt.Print("res: ", res.Status, res.URL, len(res.TextAndLinks))
-	} else {
-		page, err := crawl.CrawlPage(urlToCrawl)
-
+	if res == nil {
+		res, err = crawl.CrawlPage(urlToCrawl)
 		if err != nil {
 			log.Fatalf("Error crawling page: %s\n", err)
 		}
-
-		fmt.Println(page.Status, len(page.TextAndLinks))
 		err = db.InitiateDB(DB)
-
 		if err != nil {
 			log.Fatalf("Error adding tables to db: %s\n", err)
 		}
-
-		err = db.EnterNewUrl(DB, page)
-
+		err = db.EnterNewUrl(DB, res)
 		if err != nil {
 			log.Fatalf("Error inserting new url into db: %s\n", err)
 		}
-
-		if page.TextAndLinks != nil {
-			db.EnterNewChilds(DB, page)
+		if res.TextAndLinks != nil {
+			db.EnterNewChilds(DB, res)
 		}
 	}
+	fmt.Println("page was crawled successfuly", res.String())
 }

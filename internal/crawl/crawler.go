@@ -45,7 +45,7 @@ func CrawlPage(urlToParse string) (*models.PageData, error) {
 					if value.Key == "href" {
 						anchorUrl, err := url.Parse(value.Val)
 						if err != nil {
-							fmt.Printf("skipping malformed href: %s", err)
+							fmt.Printf("skipping malformed href: %s\n", err)
 							continue
 						}
 						link = baseUrl.ResolveReference(anchorUrl).String()
