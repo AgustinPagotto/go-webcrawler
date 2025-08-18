@@ -19,7 +19,7 @@ func CrawlPage(urlToParse string) (*models.PageData, error) {
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 	}
-	pageBeingCrawled := models.NewPageData(urlToParse, 0)
+	pageBeingCrawled := models.NewPageData(urlToParse, 0, time.Now())
 	resp, err := client.Get(pageBeingCrawled.URL)
 	if err != nil {
 		return nil, fmt.Errorf("there was an error trying to perform a get on the baseUrl %s", err)

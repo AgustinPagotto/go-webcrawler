@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/AgustinPagotto/go-webcrawler/internal/models"
 	_ "github.com/mattn/go-sqlite3"
@@ -50,7 +51,7 @@ func TestEnterNewUrl(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 	url := "www.google.com"
-	pgData := models.NewPageData(url, 200)
+	pgData := models.NewPageData(url, 200, time.Now())
 	pgData.Status = 200
 	err := EnterNewUrl(db, pgData)
 	if err != nil {
@@ -72,7 +73,7 @@ func TestEnterNewChilds(t *testing.T) {
 		"images": "www.google.com/images",
 		"duck":   "www.duckduckgo.com",
 	}
-	pgData := models.NewPageData(url, 200)
+	pgData := models.NewPageData(url, 200, time.Now())
 	pgData.TextAndLinks = child_webs
 	pgData.Status = 200
 	err := EnterNewUrl(db, pgData)
@@ -90,29 +91,5 @@ func TestEnterNewChilds(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	}
-}
-
-func TestWasUrlCrawled(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
-	url := "www.google.com"
-	urlNotCrawled := "www.yahoo.com"
-	pgData := models.NewPageData(url, 200)
-	err := EnterNewUrl(db, pgData)
-	if err != nil {
-		t.Fatal(err)
-	}
-	res, err := WasUrlCrawled(db, url)
-	if err != nil {
-		t.Fatal(err)
-	} else if !res {
-		t.Fatal(err)
-	}
-	res, err = WasUrlCrawled(db, urlNotCrawled)
-	if err != nil {
-		t.Fatal(err)
-	} else if res {
-		t.Fatal(err)
 	}
 }

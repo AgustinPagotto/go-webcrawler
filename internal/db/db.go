@@ -48,9 +48,8 @@ func InitiateDB(db *sql.DB) error {
 }
 
 func EnterNewUrl(db *sql.DB, pgData *models.PageData) error {
-	crawlDateTime := time.Now()
 	sqlQuery := "INSERT INTO webs_crawled (url, status, last_crawled) VALUES (?,?,?);"
-	_, err := db.Exec(sqlQuery, pgData.URL, pgData.Status, crawlDateTime)
+	_, err := db.Exec(sqlQuery, pgData.URL, pgData.Status, pgData.LastCrawled)
 	if err != nil {
 		return fmt.Errorf("Error trying to insert new url: \n%v", err)
 	}
@@ -76,28 +75,17 @@ func EnterNewChilds(db *sql.DB, pgData *models.PageData) error {
 	return nil
 }
 
-func WasUrlCrawled(db *sql.DB, url string) (bool, error) {
-	var id int
-	sqlQuery := "SELECT DISTINCT id FROM webs_crawled WHERE url = ?;"
-	err := db.QueryRow(sqlQuery, url).Scan(&id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	} else if err != nil {
-		return false, fmt.Errorf("db query failed: %w", err)
-	}
-	return true, nil
-}
-
 func IsUrlOnDb(db *sql.DB, url string) (*models.PageData, error) {
 	var id, status int
-	sqlQuery := "SELECT DISTINCT id, status FROM webs_crawled WHERE url = ?;"
-	err := db.QueryRow(sqlQuery, url).Scan(&id, &status)
+	var timeCrawled time.Time
+	sqlQuery := "SELECT DISTINCT id, status, last_crawled FROM webs_crawled WHERE url = ?;"
+	err := db.QueryRow(sqlQuery, url).Scan(&id, &status, &timeCrawled)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("didn't find the url in the db: \n%w", err)
 	} else if err != nil {
 		return nil, fmt.Errorf("consult of url in db query failed: %w", err)
 	}
-	pgData := models.NewPageData(url, status)
+	pgData := models.NewPageData(url, status, timeCrawled)
 	sqlQuery = "SELECT DISTINCT url_text, url FROM child_webs WHERE web_crawled_id = ?;"
 	rows, err := db.Query(sqlQuery, id)
 	if err != nil {
