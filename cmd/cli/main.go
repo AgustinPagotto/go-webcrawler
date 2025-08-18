@@ -4,11 +4,12 @@ import (
 	"database/sql"
 	"errors"
 	"flag"
-	"fmt"
+	"log"
+	"time"
+
 	"github.com/AgustinPagotto/go-webcrawler/internal/crawl"
 	"github.com/AgustinPagotto/go-webcrawler/internal/db"
 	"github.com/AgustinPagotto/go-webcrawler/internal/validate"
-	"log"
 )
 
 func receiveFlags() (string, int) {
@@ -23,37 +24,43 @@ func receiveFlags() (string, int) {
 }
 
 func main() {
+	var needsRecrawl bool
+	const recrawlAfter = 7 * 24 * time.Hour
 	urlToCrawl, depthCrawl := receiveFlags()
 	if err := validate.ValidateFlags(urlToCrawl, depthCrawl); err != nil {
 		log.Fatal(err)
 	}
-	DB, err := db.OpenConToDB()
+	dbConn, err := db.OpenConToDB()
 	if err != nil {
 		log.Fatalf("Error openning connection to the db: %s\n", err)
 	}
-	defer DB.Close()
-	res, err := db.IsUrlOnDb(DB, urlToCrawl)
+	err = db.InitiateDB(dbConn)
+	if err != nil {
+		log.Fatalf("Error adding tables to db: %s\n", err)
+	}
+	defer dbConn.Close()
+	res, err := db.IsUrlOnDb(dbConn, urlToCrawl)
 	if res == nil && !errors.Is(err, sql.ErrNoRows) {
 		log.Fatal(err)
 	} else if err != nil {
-		fmt.Println("the page is not in our DB: ", err)
+		log.Println("the page is not in our DB: ", err)
+	} else if res != nil {
+		if time.Since(res.LastCrawled) > recrawlAfter {
+			needsRecrawl = true
+		}
 	}
-	if res == nil {
+	if res == nil || needsRecrawl {
 		res, err = crawl.CrawlPage(urlToCrawl)
 		if err != nil {
 			log.Fatalf("Error crawling page: %s\n", err)
 		}
-		err = db.InitiateDB(DB)
-		if err != nil {
-			log.Fatalf("Error adding tables to db: %s\n", err)
-		}
-		err = db.EnterNewUrl(DB, res)
+		err = db.EnterNewUrl(dbConn, res)
 		if err != nil {
 			log.Fatalf("Error inserting new url into db: %s\n", err)
 		}
 		if res.TextAndLinks != nil {
-			db.EnterNewChilds(DB, res)
+			db.EnterNewChilds(dbConn, res)
 		}
 	}
-	fmt.Println("page was crawled successfuly", res.String())
+	log.Println("Page was crawled successfuly", res.String())
 }
