@@ -104,3 +104,44 @@ func IsUrlOnDb(db *sql.DB, url string) (*models.PageData, error) {
 	}
 	return pgData, nil
 }
+
+func UpdateLastCrawled(db *sql.DB, url string) error {
+	sqlQuery := "UPDATE webs_crawled set last_crawled = ? WHERE url = ?;"
+	_, err := db.Exec(sqlQuery, time.Now(), url)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func FilterOldChilds(db *sql.DB, pgData *models.PageData) error {
+	var id, cont int
+	sqlQuery := "SELECT id FROM webs_crawled WHERE url = ?;"
+	err := db.QueryRow(sqlQuery, pgData.URL).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("didn't find the url in the db: \n%w", err)
+	} else if err != nil {
+		return fmt.Errorf("consult of url in db query failed: %w", err)
+	}
+	sqlQuery = "SELECT DISTINCT url_text, url FROM child_webs WHERE web_crawled_id = ?;"
+	rows, err := db.Query(sqlQuery, id)
+	if err != nil {
+		return fmt.Errorf("consult of child urls in db query failed: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var urlText, urlLink string
+		if err := rows.Scan(&urlText, &urlLink); err != nil {
+			return err
+		}
+		if val, ok := pgData.TextAndLinks[urlText]; ok && val == urlLink {
+			cont = cont + 1
+			delete(pgData.TextAndLinks, urlText)
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	fmt.Printf("Fueron eliminados %d already saved links", cont)
+	return nil
+}
