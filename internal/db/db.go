@@ -142,6 +142,6 @@ func FilterOldChilds(db *sql.DB, pgData *models.PageData) error {
 	if err = rows.Err(); err != nil {
 		return err
 	}
-	fmt.Printf("Fueron eliminados %d already saved links", cont)
+	fmt.Printf("Deleted %d already saved links", cont)
 	return nil
 }

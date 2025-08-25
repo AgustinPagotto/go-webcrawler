@@ -2,11 +2,12 @@ package db
 
 import (
 	"database/sql"
-	"testing"
-	"time"
-
+	"errors"
+	"fmt"
 	"github.com/AgustinPagotto/go-webcrawler/internal/models"
 	_ "github.com/mattn/go-sqlite3"
+	"testing"
+	"time"
 )
 
 func setupConTestDB(t *testing.T) *sql.DB {
@@ -24,6 +25,32 @@ func setupConTestDB(t *testing.T) *sql.DB {
 func setupTestDB(t *testing.T) *sql.DB {
 	db := setupConTestDB(t)
 	_ = InitiateDB(db)
+	return db
+}
+
+func insertDataInDb(t *testing.T, db *sql.DB) *sql.DB {
+	url := "www.google.com"
+	child_webs := map[string]string{
+		"images": "www.google.com/images",
+		"duck":   "www.duckduckgo.com",
+	}
+	urlWithoutChildren := "www.yahoo.com"
+	status := 200
+	pgData := models.NewPageData(url, status, time.Now())
+	pgDataNoChilds := models.NewPageData(urlWithoutChildren, status, time.Now())
+	pgData.TextAndLinks = child_webs
+	err := EnterNewUrl(db, pgData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = EnterNewUrl(db, pgDataNoChilds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = EnterNewChilds(db, pgData)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return db
 }
 
@@ -75,7 +102,6 @@ func TestEnterNewChilds(t *testing.T) {
 	}
 	pgData := models.NewPageData(url, 200, time.Now())
 	pgData.TextAndLinks = child_webs
-	pgData.Status = 200
 	err := EnterNewUrl(db, pgData)
 	if err != nil {
 		t.Fatal(err)
@@ -91,5 +117,68 @@ func TestEnterNewChilds(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestIsUrlOnDb(t *testing.T) {
+	db := setupTestDB(t)
+	db = insertDataInDb(t, db)
+	defer db.Close()
+	urlNotInDb := "www.reddit.com"
+	urlInDb := "www.google.com"
+	urlInDbWoChildren := "www.yahoo.com"
+	pgData, err := IsUrlOnDb(db, urlNotInDb)
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatal(err)
+	}
+	pgData, err = IsUrlOnDb(db, urlInDb)
+	if err != nil || len(pgData.TextAndLinks) == 0 {
+		fmt.Print(pgData.TextAndLinks)
+		t.Fatal(err)
+	}
+	pgData, err = IsUrlOnDb(db, urlInDbWoChildren)
+	if err != nil || len(pgData.TextAndLinks) != 0 {
+		t.Fatal(err)
+	}
+}
+
+func TestUpdateLastCrawled(t *testing.T) {
+	db := setupTestDB(t)
+	now := time.Now()
+	url := "www.google.com"
+	pastDate := now.Add(12 * time.Hour)
+	pgData := models.NewPageData(url, 200, pastDate)
+	err := EnterNewUrl(db, pgData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var firstTimeInDb time.Time
+	var updatedTimeInDb time.Time
+	sqlQuery := "SELECT DISTINCT last_crawled FROM webs_crawled WHERE url = ?;"
+	err = db.QueryRow(sqlQuery, pgData.URL).Scan(&firstTimeInDb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = UpdateLastCrawled(db, url)
+	err = db.QueryRow(sqlQuery, pgData.URL).Scan(&updatedTimeInDb)
+	if time.Time.Equal(firstTimeInDb, updatedTimeInDb) {
+		t.Fatal("the times are the same, the time wasn't updated")
+	}
+}
+
+func TestFilterOldChilds(t *testing.T) {
+	db := setupTestDB(t)
+	db = insertDataInDb(t, db)
+	url := "www.google.com"
+	child_webs := map[string]string{
+		"images":    "www.google.com/images",
+		"duck":      "www.duckduckgo.com",
+		"other_url": "www.google.com/map",
+	}
+	pgData := models.NewPageData(url, 200, time.Now())
+	pgData.TextAndLinks = child_webs
+	err := FilterOldChilds(db, pgData)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
