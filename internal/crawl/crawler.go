@@ -14,7 +14,8 @@ import (
 	"golang.org/x/net/html"
 )
 
-func CrawlPage(urlToParse string) (*models.PageData, error) {
+func CrawlPage(urlToParse string, depth int) (*models.PageData, error) {
+	fmt.Println("Crawling the url: ", urlToParse, "with a depth of: ", depth)
 	baseUrl, err := validate.ValidateAndParseUrl(urlToParse)
 	if err != nil {
 		return nil, fmt.Errorf("error validating the url: %s", err)
@@ -38,12 +39,15 @@ func CrawlPage(urlToParse string) (*models.PageData, error) {
 	}
 	textAndLinks, err := retrieveUrlData(baseUrl, tokenizer)
 	pageBeingCrawled.TextAndLinks = textAndLinks
-	var linksDepthOne []string
-	for _, v := range pageBeingCrawled.TextAndLinks {
-		linksDepthOne = append(linksDepthOne, v)
+	for range depth {
+		var linksNextDepth []string
+		for _, v := range pageBeingCrawled.TextAndLinks {
+			linksNextDepth = append(linksNextDepth, v)
+		}
+		concurrentResult := concurrentCrawl(linksNextDepth)
+		maps.Copy(pageBeingCrawled.TextAndLinks, concurrentResult)
 	}
-	concurrentResult := concurrentCrawl(linksDepthOne)
-	maps.Copy(pageBeingCrawled.TextAndLinks, concurrentResult)
+	fmt.Println("amount of links retrieved in total", len(pageBeingCrawled.TextAndLinks))
 	return pageBeingCrawled, nil
 }
 

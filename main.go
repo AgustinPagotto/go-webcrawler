@@ -52,7 +52,7 @@ func main() {
 		}
 	}
 	if res == nil || needsRecrawl {
-		res, err = crawl.CrawlPage(urlToCrawl)
+		res, err = crawl.CrawlPage(urlToCrawl, depthCrawl)
 		if err != nil {
 			log.Fatalf("Error crawling page: %s\n", err)
 		}
