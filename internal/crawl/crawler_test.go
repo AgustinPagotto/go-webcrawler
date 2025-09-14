@@ -50,3 +50,16 @@ func TestCrawlPage(t *testing.T) {
 		})
 	}
 }
+
+var testLinks = []string{"https://httpbin.org/", "https://wikipedia.com", "https://go.dev/"}
+
+func BenchmarkCrawlOnePerLink(b *testing.B) {
+	for b.Loop() {
+		ConcurrentCrawl(testLinks)
+	}
+}
+func BenchmarkCrawlPoolOfFive(b *testing.B) {
+	for b.Loop() {
+		ConcurrentCrawlNew(testLinks)
+	}
+}

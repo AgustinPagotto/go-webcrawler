@@ -44,7 +44,7 @@ func CrawlPage(urlToParse string, depth int) (*models.PageData, error) {
 		for _, v := range pageBeingCrawled.TextAndLinks {
 			linksNextDepth = append(linksNextDepth, v)
 		}
-		concurrentResult := concurrentCrawlNew(linksNextDepth)
+		concurrentResult := ConcurrentCrawlNew(linksNextDepth)
 		maps.Copy(pageBeingCrawled.TextAndLinks, concurrentResult)
 	}
 	fmt.Println("amount of links retrieved in total", len(pageBeingCrawled.TextAndLinks))
@@ -86,7 +86,7 @@ func retrieveUrlData(baseUrl *url.URL, z *html.Tokenizer) (map[string]string, er
 	return textAndLinks, nil
 }
 
-func concurrentCrawl(links []string) map[string]string {
+func ConcurrentCrawl(links []string) map[string]string {
 	var wg sync.WaitGroup
 	pagesTitlesStream := make(chan map[string]string)
 	concurrencyErrors := make(chan error)
@@ -174,7 +174,7 @@ func crawlLink(link string) Result {
 	return Result{Error: err, InfoCrawled: textAndLinks}
 }
 
-func concurrentCrawlNew(links []string) map[string]string {
+func ConcurrentCrawlNew(links []string) map[string]string {
 	var wg sync.WaitGroup
 	crawledInfo := make(chan Result)
 	linkStream := make(chan string)
@@ -196,9 +196,9 @@ func concurrentCrawlNew(links []string) map[string]string {
 			}
 		}()
 	}
-	//	for range 5 {
-	crawlerWorker(done, linkStream)
-	//	}
+	for range 5 {
+		crawlerWorker(done, linkStream)
+	}
 	go func() {
 		defer close(linkStream)
 		for _, link := range links {
