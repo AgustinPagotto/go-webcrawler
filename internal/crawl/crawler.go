@@ -19,27 +19,6 @@ type Result struct {
 	InfoCrawled map[string]string
 }
 
-func crawlLink(link string) (Result, *url.URL, int) {
-	validatedUrl, err := validate.ValidateAndParseUrl(link)
-	if err != nil {
-		return Result{Error: err, InfoCrawled: nil}, nil, 0
-	}
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-	resp, err := client.Get(validatedUrl.String())
-	if err != nil {
-		return Result{Error: fmt.Errorf("error trying to perform get to the url, %v", err), InfoCrawled: nil}, nil, resp.StatusCode
-	}
-	defer resp.Body.Close()
-	tokenizer := html.NewTokenizer(resp.Body)
-	textAndLinks, err := retrieveUrlData(validatedUrl, tokenizer)
-	if err != nil {
-		return Result{Error: err, InfoCrawled: nil}, nil, resp.StatusCode
-	}
-	return Result{Error: err, InfoCrawled: textAndLinks}, validatedUrl, resp.StatusCode
-}
-
 func CrawlPage(urlToCrawl string, depth int) (*models.PageData, error) {
 	fmt.Println("Crawling the url: ", urlToCrawl, "with a depth of: ", depth)
 	var pageCrawledInfo models.PageData
@@ -142,6 +121,27 @@ func retrieveUrlData(baseUrl *url.URL, tz *html.Tokenizer) (map[string]string, e
 		}
 	}
 	return textAndLinks, nil
+}
+
+func crawlLink(link string) (Result, *url.URL, int) {
+	validatedUrl, err := validate.ValidateAndParseUrl(link)
+	if err != nil {
+		return Result{Error: err, InfoCrawled: nil}, nil, 0
+	}
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+	resp, err := client.Get(validatedUrl.String())
+	if err != nil {
+		return Result{Error: fmt.Errorf("error trying to perform get to the url, %v", err), InfoCrawled: nil}, nil, resp.StatusCode
+	}
+	defer resp.Body.Close()
+	tokenizer := html.NewTokenizer(resp.Body)
+	textAndLinks, err := retrieveUrlData(validatedUrl, tokenizer)
+	if err != nil {
+		return Result{Error: err, InfoCrawled: nil}, nil, resp.StatusCode
+	}
+	return Result{Error: err, InfoCrawled: textAndLinks}, validatedUrl, resp.StatusCode
 }
 
 func ConcurrentCrawlAlt(links []string) map[string]string {
