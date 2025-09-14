@@ -14,55 +14,113 @@ import (
 	"golang.org/x/net/html"
 )
 
-func CrawlPage(urlToParse string, depth int) (*models.PageData, error) {
-	fmt.Println("Crawling the url: ", urlToParse, "with a depth of: ", depth)
-	baseUrl, err := validate.ValidateAndParseUrl(urlToParse)
+type Result struct {
+	Error       error
+	InfoCrawled map[string]string
+}
+
+func crawlLink(link string) (Result, *url.URL, int) {
+	validatedUrl, err := validate.ValidateAndParseUrl(link)
 	if err != nil {
-		return nil, fmt.Errorf("error validating the url: %s", err)
+		return Result{Error: err, InfoCrawled: nil}, nil, 0
 	}
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 	}
-	pageBeingCrawled := models.NewPageData(urlToParse, 0, time.Now())
-	resp, err := client.Get(urlToParse)
+	resp, err := client.Get(validatedUrl.String())
 	if err != nil {
-		return nil, fmt.Errorf("there was an error trying to perform a get on the baseUrl %s", err)
+		return Result{Error: fmt.Errorf("error trying to perform get to the url, %v", err), InfoCrawled: nil}, nil, resp.StatusCode
 	}
 	defer resp.Body.Close()
-	pageBeingCrawled.Status = resp.StatusCode
-	if resp.StatusCode != http.StatusOK {
-		return pageBeingCrawled, nil
-	}
 	tokenizer := html.NewTokenizer(resp.Body)
-	if tokenizer == nil {
-		return pageBeingCrawled, nil
+	textAndLinks, err := retrieveUrlData(validatedUrl, tokenizer)
+	if err != nil {
+		return Result{Error: err, InfoCrawled: nil}, nil, resp.StatusCode
 	}
-	textAndLinks, err := retrieveUrlData(baseUrl, tokenizer)
-	pageBeingCrawled.TextAndLinks = textAndLinks
-	for range depth {
-		var linksNextDepth []string
-		for _, v := range pageBeingCrawled.TextAndLinks {
-			linksNextDepth = append(linksNextDepth, v)
-		}
-		concurrentResult := ConcurrentCrawlNew(linksNextDepth)
-		maps.Copy(pageBeingCrawled.TextAndLinks, concurrentResult)
-	}
-	fmt.Println("amount of links retrieved in total", len(pageBeingCrawled.TextAndLinks))
-	return pageBeingCrawled, nil
+	return Result{Error: err, InfoCrawled: textAndLinks}, validatedUrl, resp.StatusCode
 }
 
-func retrieveUrlData(baseUrl *url.URL, z *html.Tokenizer) (map[string]string, error) {
-	textAndLinks := make(map[string]string)
+func CrawlPage(urlToCrawl string, depth int) (*models.PageData, error) {
+	fmt.Println("Crawling the url: ", urlToCrawl, "with a depth of: ", depth)
+	var pageCrawledInfo models.PageData
+	crawlResult, validUrl, statusCode := crawlLink(urlToCrawl)
+	if crawlResult.Error != nil {
+		return nil, crawlResult.Error
+	}
+	pageCrawledInfo.URL = validUrl.String()
+	pageCrawledInfo.Status = statusCode
+	pageCrawledInfo.TextAndLinks = crawlResult.InfoCrawled
+	for range depth {
+		var linksNextDepth []string
+		for _, v := range pageCrawledInfo.TextAndLinks {
+			linksNextDepth = append(linksNextDepth, v)
+		}
+		concurrentResult := ConcurrentCrawl(linksNextDepth)
+		maps.Copy(pageCrawledInfo.TextAndLinks, concurrentResult)
+	}
+	fmt.Println("amount of links retrieved in total", len(pageCrawledInfo.TextAndLinks))
+	return &pageCrawledInfo, nil
+}
+
+func ConcurrentCrawl(links []string) map[string]string {
+	var wg sync.WaitGroup
+	crawledInfo := make(chan Result)
+	linkStream := make(chan string)
+	done := make(chan any)
+	crawlerWorker := func(done <-chan any, linkChannel <-chan string) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case link, ok := <-linkChannel:
+					if !ok {
+						return
+					}
+					crawlResult, _, _ := crawlLink(link)
+					crawledInfo <- crawlResult
+				case <-done:
+					return
+				}
+			}
+		}()
+	}
+	for range 5 {
+		crawlerWorker(done, linkStream)
+	}
+	go func() {
+		defer close(linkStream)
+		for _, link := range links {
+			linkStream <- link
+		}
+	}()
+	go func() {
+		wg.Wait()
+		close(crawledInfo)
+	}()
+	textAndLinksCrawled := make(map[string]string)
 	for {
-		tokenType := z.Next()
-		if tokenType == html.ErrorToken {
+		workerInfo, ok := <-crawledInfo
+		if !ok {
 			break
 		}
-		if tokenType == html.StartTagToken {
-			token := z.Token()
-			if token.Data == "a" {
+		maps.Copy(textAndLinksCrawled, workerInfo.InfoCrawled)
+	}
+	return textAndLinksCrawled
+}
+
+func retrieveUrlData(baseUrl *url.URL, tz *html.Tokenizer) (map[string]string, error) {
+	textAndLinks := make(map[string]string)
+	for {
+		tt := tz.Next()
+		if tt == html.ErrorToken {
+			break
+		}
+		if tt == html.StartTagToken {
+			t := tz.Token()
+			if t.Data == "a" {
 				var link string
-				tokenAttributes := token.Attr
+				tokenAttributes := t.Attr
 				for _, value := range tokenAttributes {
 					if value.Key == "href" {
 						anchorUrl, err := url.Parse(value.Val)
@@ -73,9 +131,9 @@ func retrieveUrlData(baseUrl *url.URL, z *html.Tokenizer) (map[string]string, er
 						link = baseUrl.ResolveReference(anchorUrl).String()
 					}
 				}
-				nextToken := z.Next()
+				nextToken := tz.Next()
 				if nextToken == html.TextToken && link != "" {
-					trimmedText := strings.TrimSpace(string(z.Text()))
+					trimmedText := strings.TrimSpace(string(tz.Text()))
 					if trimmedText != "" {
 						textAndLinks[trimmedText] = link
 					}
@@ -86,7 +144,7 @@ func retrieveUrlData(baseUrl *url.URL, z *html.Tokenizer) (map[string]string, er
 	return textAndLinks, nil
 }
 
-func ConcurrentCrawl(links []string) map[string]string {
+func ConcurrentCrawlAlt(links []string) map[string]string {
 	var wg sync.WaitGroup
 	pagesTitlesStream := make(chan map[string]string)
 	concurrencyErrors := make(chan error)
@@ -146,76 +204,4 @@ func ConcurrentCrawl(links []string) map[string]string {
 			return textAndLinksCrawled
 		}
 	}
-}
-
-type Result struct {
-	Error       error
-	InfoCrawled map[string]string
-}
-
-func crawlLink(link string) Result {
-	baseUrl, err := validate.ValidateAndParseUrl(link)
-	if err != nil {
-		return Result{Error: err, InfoCrawled: nil}
-	}
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-	resp, err := client.Get(link)
-	if err != nil {
-		return Result{Error: err, InfoCrawled: nil}
-	}
-	defer resp.Body.Close()
-	tokenizer := html.NewTokenizer(resp.Body)
-	textAndLinks, err := retrieveUrlData(baseUrl, tokenizer)
-	if err != nil {
-		return Result{Error: err, InfoCrawled: nil}
-	}
-	return Result{Error: err, InfoCrawled: textAndLinks}
-}
-
-func ConcurrentCrawlNew(links []string) map[string]string {
-	var wg sync.WaitGroup
-	crawledInfo := make(chan Result)
-	linkStream := make(chan string)
-	done := make(chan any)
-	crawlerWorker := func(done <-chan any, linkChannel <-chan string) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				select {
-				case link, ok := <-linkChannel:
-					if !ok {
-						return
-					}
-					crawledInfo <- crawlLink(link)
-				case <-done:
-					return
-				}
-			}
-		}()
-	}
-	for range 5 {
-		crawlerWorker(done, linkStream)
-	}
-	go func() {
-		defer close(linkStream)
-		for _, link := range links {
-			linkStream <- link
-		}
-	}()
-	go func() {
-		wg.Wait()
-		close(crawledInfo)
-	}()
-	textAndLinksCrawled := make(map[string]string)
-	for {
-		workerInfo, ok := <-crawledInfo
-		if !ok {
-			break
-		}
-		maps.Copy(textAndLinksCrawled, workerInfo.InfoCrawled)
-	}
-	return textAndLinksCrawled
 }
