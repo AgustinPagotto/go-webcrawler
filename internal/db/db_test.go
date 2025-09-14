@@ -11,6 +11,7 @@ import (
 )
 
 func setupConTestDB(t *testing.T) *sql.DB {
+	t.Helper()
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatal(err)
@@ -23,12 +24,14 @@ func setupConTestDB(t *testing.T) *sql.DB {
 }
 
 func setupTestDB(t *testing.T) *sql.DB {
+	t.Helper()
 	db := setupConTestDB(t)
 	_ = InitiateDB(db)
 	return db
 }
 
 func insertDataInDb(t *testing.T, db *sql.DB) *sql.DB {
+	t.Helper()
 	url := "www.google.com"
 	child_webs := map[string]string{
 		"images": "www.google.com/images",
