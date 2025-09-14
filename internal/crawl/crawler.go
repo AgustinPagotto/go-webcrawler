@@ -44,7 +44,7 @@ func CrawlPage(urlToParse string, depth int) (*models.PageData, error) {
 		for _, v := range pageBeingCrawled.TextAndLinks {
 			linksNextDepth = append(linksNextDepth, v)
 		}
-		concurrentResult := concurrentCrawl(linksNextDepth)
+		concurrentResult := concurrentCrawlNew(linksNextDepth)
 		maps.Copy(pageBeingCrawled.TextAndLinks, concurrentResult)
 	}
 	fmt.Println("amount of links retrieved in total", len(pageBeingCrawled.TextAndLinks))
@@ -146,4 +146,76 @@ func concurrentCrawl(links []string) map[string]string {
 			return textAndLinksCrawled
 		}
 	}
+}
+
+type Result struct {
+	Error       error
+	InfoCrawled map[string]string
+}
+
+func crawlLink(link string) Result {
+	baseUrl, err := validate.ValidateAndParseUrl(link)
+	if err != nil {
+		return Result{Error: err, InfoCrawled: nil}
+	}
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+	resp, err := client.Get(link)
+	if err != nil {
+		return Result{Error: err, InfoCrawled: nil}
+	}
+	defer resp.Body.Close()
+	tokenizer := html.NewTokenizer(resp.Body)
+	textAndLinks, err := retrieveUrlData(baseUrl, tokenizer)
+	if err != nil {
+		return Result{Error: err, InfoCrawled: nil}
+	}
+	return Result{Error: err, InfoCrawled: textAndLinks}
+}
+
+func concurrentCrawlNew(links []string) map[string]string {
+	var wg sync.WaitGroup
+	crawledInfo := make(chan Result)
+	linkStream := make(chan string)
+	done := make(chan any)
+	crawlerWorker := func(done <-chan any, linkChannel <-chan string) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case link, ok := <-linkChannel:
+					if !ok {
+						return
+					}
+					crawledInfo <- crawlLink(link)
+				case <-done:
+					return
+				}
+			}
+		}()
+	}
+	//	for range 5 {
+	crawlerWorker(done, linkStream)
+	//	}
+	go func() {
+		defer close(linkStream)
+		for _, link := range links {
+			linkStream <- link
+		}
+	}()
+	go func() {
+		wg.Wait()
+		close(crawledInfo)
+	}()
+	textAndLinksCrawled := make(map[string]string)
+	for {
+		workerInfo, ok := <-crawledInfo
+		if !ok {
+			break
+		}
+		maps.Copy(textAndLinksCrawled, workerInfo.InfoCrawled)
+	}
+	return textAndLinksCrawled
 }
