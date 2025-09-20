@@ -60,6 +60,11 @@ func BenchmarkCrawlOnePerLink(b *testing.B) {
 }
 func BenchmarkCrawlPoolOfFive(b *testing.B) {
 	for b.Loop() {
+		ConcurrentCrawlAlt1(testLinks)
+	}
+}
+func BenchmarkCrawlPipelineApproach(b *testing.B) {
+	for b.Loop() {
 		ConcurrentCrawl(testLinks)
 	}
 }

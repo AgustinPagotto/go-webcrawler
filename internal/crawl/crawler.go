@@ -233,3 +233,49 @@ func ConcurrentCrawlAlt(links []string) map[string]string {
 		}
 	}
 }
+func ConcurrentCrawlAlt1(links []string) map[string]string {
+	var wg sync.WaitGroup
+	crawledInfo := make(chan Result)
+	linkStream := make(chan string)
+	done := make(chan any)
+	crawlerWorker := func(done <-chan any, linkChannel <-chan string) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case link, ok := <-linkChannel:
+					if !ok {
+						return
+					}
+					crawlResult, _, _ := crawlLink(link)
+					crawledInfo <- crawlResult
+				case <-done:
+					return
+				}
+			}
+		}()
+	}
+	for range 5 {
+		crawlerWorker(done, linkStream)
+	}
+	go func() {
+		defer close(linkStream)
+		for _, link := range links {
+			linkStream <- link
+		}
+	}()
+	go func() {
+		wg.Wait()
+		close(crawledInfo)
+	}()
+	textAndLinksCrawled := make(map[string]string)
+	for {
+		workerInfo, ok := <-crawledInfo
+		if !ok {
+			break
+		}
+		maps.Copy(textAndLinksCrawled, workerInfo.InfoCrawled)
+	}
+	return textAndLinksCrawled
+}
