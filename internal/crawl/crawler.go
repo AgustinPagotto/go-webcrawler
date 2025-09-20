@@ -5,6 +5,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -42,14 +43,27 @@ func CrawlPage(urlToCrawl string, depth int) (*models.PageData, error) {
 }
 
 func ConcurrentCrawl(links []string) map[string]string {
-	var wg sync.WaitGroup
-	crawledInfo := make(chan Result)
-	linkStream := make(chan string)
 	done := make(chan any)
-	crawlerWorker := func(done <-chan any, linkChannel <-chan string) {
-		wg.Add(1)
+	defer close(done)
+	linkChannelGenerator := func(done <-chan any, receivedLinks ...string) <-chan string {
+		linkStream := make(chan string)
 		go func() {
-			defer wg.Done()
+			defer close(linkStream)
+			for _, v := range receivedLinks {
+				select {
+				case <-done:
+					return
+				case linkStream <- v:
+				}
+			}
+		}()
+		return linkStream
+	}
+	crawlerWorker := func(done <-chan any, linkChannel <-chan string) <-chan Result {
+		results := make(chan Result)
+		go func() {
+			defer close(results)
+			defer fmt.Println("goroutine closed")
 			for {
 				select {
 				case link, ok := <-linkChannel:
@@ -57,33 +71,47 @@ func ConcurrentCrawl(links []string) map[string]string {
 						return
 					}
 					crawlResult, _, _ := crawlLink(link)
-					crawledInfo <- crawlResult
+					results <- crawlResult
 				case <-done:
 					return
 				}
 			}
 		}()
+		return results
 	}
-	for range 5 {
-		crawlerWorker(done, linkStream)
-	}
-	go func() {
-		defer close(linkStream)
-		for _, link := range links {
-			linkStream <- link
+	fanIn := func(done <-chan any, resultStream ...<-chan Result) <-chan Result {
+		var wg sync.WaitGroup
+		multiplexedStream := make(chan Result)
+		multiplex := func(c <-chan Result) {
+			defer wg.Done()
+			for i := range c {
+				select {
+				case <-done:
+					return
+				case multiplexedStream <- i:
+				}
+			}
 		}
-	}()
-	go func() {
-		wg.Wait()
-		close(crawledInfo)
-	}()
+		wg.Add(len(resultStream))
+		for _, c := range resultStream {
+			go multiplex(c)
+		}
+		go func() {
+			wg.Wait()
+			close(multiplexedStream)
+		}()
+		return multiplexedStream
+	}
+	linkChannel := linkChannelGenerator(done, links...)
+	numCrawlers := runtime.NumCPU()
+	crawlersChan := make([]<-chan Result, numCrawlers)
+	for i := range numCrawlers {
+		crawlersChan[i] = crawlerWorker(done, linkChannel)
+	}
+
 	textAndLinksCrawled := make(map[string]string)
-	for {
-		workerInfo, ok := <-crawledInfo
-		if !ok {
-			break
-		}
-		maps.Copy(textAndLinksCrawled, workerInfo.InfoCrawled)
+	for c := range fanIn(done, crawlersChan...) {
+		maps.Copy(textAndLinksCrawled, c.InfoCrawled)
 	}
 	return textAndLinksCrawled
 }
