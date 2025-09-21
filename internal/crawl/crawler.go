@@ -1,6 +1,8 @@
 package crawl
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -35,23 +37,23 @@ func CrawlPage(urlToCrawl string, depth int) (*models.PageData, error) {
 		for _, v := range pageCrawledInfo.TextAndLinks {
 			linksNextDepth = append(linksNextDepth, v)
 		}
-		concurrentResult := ConcurrentCrawl(linksNextDepth)
+		concurrentResult, _ := ConcurrentCrawl(linksNextDepth)
 		maps.Copy(pageCrawledInfo.TextAndLinks, concurrentResult)
 	}
 	fmt.Println("amount of links retrieved in total", len(pageCrawledInfo.TextAndLinks))
 	return &pageCrawledInfo, nil
 }
 
-func ConcurrentCrawl(links []string) map[string]string {
-	done := make(chan any)
-	defer close(done)
-	linkChannelGenerator := func(done <-chan any, receivedLinks ...string) <-chan string {
+func ConcurrentCrawl(links []string) (map[string]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	linkChannelGenerator := func(ctx context.Context, receivedLinks ...string) <-chan string {
 		linkStream := make(chan string)
 		go func() {
 			defer close(linkStream)
 			for _, v := range receivedLinks {
 				select {
-				case <-done:
+				case <-ctx.Done():
 					return
 				case linkStream <- v:
 				}
@@ -59,7 +61,7 @@ func ConcurrentCrawl(links []string) map[string]string {
 		}()
 		return linkStream
 	}
-	crawlerWorker := func(done <-chan any, linkChannel <-chan string) <-chan Result {
+	crawlerWorker := func(ctx context.Context, linkChannel <-chan string) <-chan Result {
 		results := make(chan Result)
 		go func() {
 			defer close(results)
@@ -72,21 +74,21 @@ func ConcurrentCrawl(links []string) map[string]string {
 					}
 					crawlResult, _, _ := crawlLink(link)
 					results <- crawlResult
-				case <-done:
+				case <-ctx.Done():
 					return
 				}
 			}
 		}()
 		return results
 	}
-	fanIn := func(done <-chan any, resultStream ...<-chan Result) <-chan Result {
+	fanIn := func(ctx context.Context, resultStream ...<-chan Result) <-chan Result {
 		var wg sync.WaitGroup
 		multiplexedStream := make(chan Result)
 		multiplex := func(c <-chan Result) {
 			defer wg.Done()
 			for i := range c {
 				select {
-				case <-done:
+				case <-ctx.Done():
 					return
 				case multiplexedStream <- i:
 				}
@@ -102,18 +104,28 @@ func ConcurrentCrawl(links []string) map[string]string {
 		}()
 		return multiplexedStream
 	}
-	linkChannel := linkChannelGenerator(done, links...)
+	linkChannel := linkChannelGenerator(ctx, links...)
 	numCrawlers := runtime.NumCPU()
 	crawlersChan := make([]<-chan Result, numCrawlers)
 	for i := range numCrawlers {
-		crawlersChan[i] = crawlerWorker(done, linkChannel)
+		crawlersChan[i] = crawlerWorker(ctx, linkChannel)
 	}
 
 	textAndLinksCrawled := make(map[string]string)
-	for c := range fanIn(done, crawlersChan...) {
+	for c := range fanIn(ctx, crawlersChan...) {
 		maps.Copy(textAndLinksCrawled, c.InfoCrawled)
 	}
-	return textAndLinksCrawled
+	if err := ctx.Err(); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return textAndLinksCrawled, fmt.Errorf("Crawl stopped: timeout exceeded", err)
+		} else if errors.Is(err, context.Canceled) {
+
+			return textAndLinksCrawled, fmt.Errorf("Crawl stopped: canceled by user", err)
+		} else {
+			return textAndLinksCrawled, fmt.Errorf("Crawl stopped: ", err)
+		}
+	}
+	return textAndLinksCrawled, nil
 }
 
 func retrieveUrlData(baseUrl *url.URL, tz *html.Tokenizer) (map[string]string, error) {
