@@ -53,16 +53,6 @@ func TestCrawlPage(t *testing.T) {
 
 var testLinks = []string{"https://httpbin.org/", "https://wikipedia.com", "https://go.dev/"}
 
-func BenchmarkCrawlOnePerLink(b *testing.B) {
-	for b.Loop() {
-		ConcurrentCrawlAlt(testLinks)
-	}
-}
-func BenchmarkCrawlPoolOfFive(b *testing.B) {
-	for b.Loop() {
-		ConcurrentCrawlAlt1(testLinks)
-	}
-}
 func BenchmarkCrawlPipelineApproach(b *testing.B) {
 	for b.Loop() {
 		ConcurrentCrawl(testLinks)
