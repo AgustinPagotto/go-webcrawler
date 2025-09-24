@@ -117,12 +117,12 @@ func ConcurrentCrawl(links []string) (map[string]string, error) {
 	}
 	if err := ctx.Err(); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return textAndLinksCrawled, fmt.Errorf("Crawl stopped: timeout exceeded", err)
+			return textAndLinksCrawled, fmt.Errorf("Crawl stopped: timeout exceeded %v", err)
 		} else if errors.Is(err, context.Canceled) {
 
-			return textAndLinksCrawled, fmt.Errorf("Crawl stopped: canceled by user", err)
+			return textAndLinksCrawled, fmt.Errorf("Crawl stopped: canceled by user %v", err)
 		} else {
-			return textAndLinksCrawled, fmt.Errorf("Crawl stopped: ", err)
+			return textAndLinksCrawled, fmt.Errorf("Crawl stopped: %v", err)
 		}
 	}
 	return textAndLinksCrawled, nil
