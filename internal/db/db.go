@@ -155,10 +155,10 @@ func SearchTerm(db *sql.DB, searchTerm string) ([]string, error) {
 	cutSearchTerm := firstN(searchTerm, 3)
 	var urlsFound []string
 	sqlQuery := "SELECT url FROM child_webs WHERE url_text LIKE ?;"
-	newSearchTerm := fmt.Sprintf("%s%%", cutSearchTerm)
+	newSearchTerm := fmt.Sprintf("%%%s%%", cutSearchTerm)
 	rows, err := db.Query(sqlQuery, newSearchTerm)
 	if err != nil {
-		return nil, fmt.Errorf("there was an error trying to search that term: ", err)
+		return nil, fmt.Errorf("there was an error trying to search that term: %v ", err)
 	}
 	for rows.Next() {
 		var urlLink string
