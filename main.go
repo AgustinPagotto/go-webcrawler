@@ -13,22 +13,24 @@ import (
 	"github.com/AgustinPagotto/go-webcrawler/internal/validate"
 )
 
-func receiveFlags() (string, int) {
+func receiveFlags() (string, int, string) {
 	var urlFromCli string
 	var depthCrawl int
-	flag.StringVar(&urlFromCli, "url", "http://google.com", "Url to be Crawled")
-	flag.StringVar(&urlFromCli, "u", "http://google.com", "Url to be Crawled")
+	var searchTerm string
+	flag.StringVar(&urlFromCli, "url", "", "Url to be Crawled")
+	flag.StringVar(&urlFromCli, "u", "", "Url to be Crawled")
 	flag.IntVar(&depthCrawl, "depth", 1, "Depth of the crawl")
 	flag.IntVar(&depthCrawl, "d", 1, "Depth of the crawl")
+	flag.StringVar(&searchTerm, "search", "", "Word to Search")
+	flag.StringVar(&searchTerm, "s", "", "Word to Search")
 	flag.Parse()
-	return urlFromCli, depthCrawl
+	return urlFromCli, depthCrawl, searchTerm
 }
 
 func main() {
-	var needsRecrawl bool
-	const recrawlAfter = 1 * 24 * time.Hour
-	urlToCrawl, depthCrawl := receiveFlags()
-	if err := validate.ValidateFlags(urlToCrawl, depthCrawl); err != nil {
+	urlToCrawl, depthCrawl, searchTerm := receiveFlags()
+	searchBool, err := validate.ValidateFlags(urlToCrawl, depthCrawl, searchTerm)
+	if err != nil {
 		log.Fatal(err)
 	}
 	dbConn, err := db.OpenConToDB()
@@ -40,6 +42,16 @@ func main() {
 		log.Fatalf("Error adding tables to db: %s\n", err)
 	}
 	defer dbConn.Close()
+	if searchBool {
+		performSearch(dbConn, searchTerm)
+	} else {
+		performCrawl(dbConn, urlToCrawl, depthCrawl)
+	}
+}
+
+func performCrawl(dbConn *sql.DB, urlToCrawl string, depthCrawl int) {
+	var needsRecrawl bool
+	const recrawlAfter = 1 * 24 * time.Hour
 	res, err := db.IsUrlOnDb(dbConn, urlToCrawl)
 	if res == nil && !errors.Is(err, sql.ErrNoRows) {
 		log.Fatal(err)
@@ -77,4 +89,15 @@ func main() {
 		}
 	}
 	log.Println("Page was crawled successfuly", res.String())
+}
+
+func performSearch(dbConn *sql.DB, searchTerm string) {
+	fmt.Println("Performing a search of urls in our database for the word: ", searchTerm)
+	results, err := db.SearchTerm(dbConn, searchTerm)
+	if err != nil {
+		fmt.Println(err)
+	}
+	for _, v := range results {
+		fmt.Println(v)
+	}
 }

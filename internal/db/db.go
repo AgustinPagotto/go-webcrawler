@@ -44,6 +44,11 @@ func InitiateDB(db *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("Error trying to create child_webs table: \n%v", err)
 	}
+	sqlQuery = `CREATE INDEX IF NOT EXISTS idx_child_webs_url_and_text ON child_webs(url_text, url);`
+	_, err = db.Exec(sqlQuery)
+	if err != nil {
+		return fmt.Errorf("Error trying to create index of url from child_webs table: \n%v", err)
+	}
 	return nil
 }
 
@@ -144,4 +149,32 @@ func FilterOldChilds(db *sql.DB, pgData *models.PageData) error {
 	}
 	fmt.Printf("Deleted %d already saved links", cont)
 	return nil
+}
+
+func SearchTerm(db *sql.DB, searchTerm string) ([]string, error) {
+	cutSearchTerm := firstN(searchTerm, 3)
+	var urlsFound []string
+	sqlQuery := "SELECT url FROM child_webs WHERE url_text LIKE ?;"
+	newSearchTerm := fmt.Sprintf("%s%%", cutSearchTerm)
+	rows, err := db.Query(sqlQuery, newSearchTerm)
+	if err != nil {
+		return nil, fmt.Errorf("there was an error trying to search that term: ", err)
+	}
+	for rows.Next() {
+		var urlLink string
+		if err := rows.Scan(&urlLink); err != nil {
+			return nil, err
+		}
+		urlsFound = append(urlsFound, urlLink)
+	}
+	defer rows.Close()
+	return urlsFound, nil
+}
+
+func firstN(str string, n int) string {
+	runes := []rune(str)
+	if n >= len(runes) {
+		return str
+	}
+	return string(runes[:n])
 }

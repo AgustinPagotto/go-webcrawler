@@ -19,12 +19,18 @@ func ValidateAndParseUrl(urlToValidate string) (*url.URL, error) {
 	return res, nil
 }
 
-func ValidateFlags(url string, depth int) error {
-	if depth < 1 {
-		return fmt.Errorf("The depth of crawl can't be less than 1")
+func ValidateFlags(url string, depth int, search string) (bool, error) {
+	if url == "" && search != "" {
+		if len(search) < 3 {
+			return true, fmt.Errorf("word too small for a search")
+		}
+		return true, nil
 	}
-	if url == "" {
-		return fmt.Errorf("Please provide a non-empty url")
+	if url != "" && search == "" {
+		if depth < 1 {
+			return false, fmt.Errorf("The depth of crawl can't be less than 1")
+		}
+		return false, nil
 	}
-	return nil
+	return false, fmt.Errorf("No requirement were satisfied, won't perform anything")
 }
