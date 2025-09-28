@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/AgustinPagotto/go-webcrawler/internal/validate"
+	"golang.org/x/net/html"
 	"maps"
 	"net/http"
 	"net/url"
@@ -11,40 +13,60 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/AgustinPagotto/go-webcrawler/internal/models"
-	"github.com/AgustinPagotto/go-webcrawler/internal/validate"
-	"golang.org/x/net/html"
 )
+
+type Crawler struct {
+	URL              string
+	depth            int
+	Status           int
+	TextLinksCrawled map[string]string
+	LastTimeCrawled  time.Time
+}
 
 type Result struct {
 	Error       error
 	InfoCrawled map[string]string
 }
 
-func CrawlPage(urlToCrawl string, depth int) (*models.PageData, error) {
-	fmt.Println("Crawling the url: ", urlToCrawl, "with a depth of: ", depth)
-	var pageCrawledInfo models.PageData
-	crawlResult, validUrl, statusCode := crawlLink(urlToCrawl)
-	if crawlResult.Error != nil {
-		return nil, crawlResult.Error
-	}
-	pageCrawledInfo.URL = validUrl.String()
-	pageCrawledInfo.Status = statusCode
-	pageCrawledInfo.TextAndLinks = crawlResult.InfoCrawled
-	for range depth {
-		var linksNextDepth []string
-		for _, v := range pageCrawledInfo.TextAndLinks {
-			linksNextDepth = append(linksNextDepth, v)
-		}
-		concurrentResult, _ := ConcurrentCrawl(linksNextDepth)
-		maps.Copy(pageCrawledInfo.TextAndLinks, concurrentResult)
-	}
-	fmt.Println("amount of links retrieved in total", len(pageCrawledInfo.TextAndLinks))
-	return &pageCrawledInfo, nil
+func New(url string, depth int) *Crawler {
+	p := Crawler{URL: url, TextLinksCrawled: make(map[string]string), depth: depth}
+	return &p
 }
 
-func ConcurrentCrawl(links []string) (map[string]string, error) {
+func (c *Crawler) String() string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("%s \t %d \t %d \t %s", c.URL, c.Status, len(c.TextLinksCrawled), c.LastTimeCrawled.String()))
+	return b.String()
+}
+
+func (c *Crawler) Crawl() error {
+	crawlResult, validUrl, statusCode := crawlLink(c.URL)
+	if crawlResult.Error != nil {
+		return crawlResult.Error
+	}
+	c.URL = validUrl.String()
+	c.Status = statusCode
+	c.TextLinksCrawled = crawlResult.InfoCrawled
+	c.LastTimeCrawled = time.Now()
+	return nil
+}
+
+func (c *Crawler) CrawlChildrenWithDepth() error {
+	if c.depth <= 1 {
+		return fmt.Errorf("children already in the crawler struct, not further crawl needed")
+	}
+	for range c.depth {
+		var linksNextDepth []string
+		for _, v := range c.TextLinksCrawled {
+			linksNextDepth = append(linksNextDepth, v)
+		}
+		concurrentResult, _ := concurrentCrawl(linksNextDepth)
+		maps.Copy(c.TextLinksCrawled, concurrentResult)
+	}
+	return nil
+}
+
+func concurrentCrawl(links []string) (map[string]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	linkChannelGenerator := func(ctx context.Context, receivedLinks ...string) <-chan string {

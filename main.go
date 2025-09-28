@@ -64,12 +64,17 @@ func performCrawl(dbConn *sql.DB, urlToCrawl string, depthCrawl int) {
 		}
 	}
 	if res == nil || needsRecrawl {
-		res, err = crawl.CrawlPage(urlToCrawl, depthCrawl)
+		crawler := crawl.New(urlToCrawl, depthCrawl)
+		err := crawler.Crawl()
 		if err != nil {
 			log.Fatalf("Error crawling page: %s\n", err)
 		}
+		err = crawler.CrawlChildrenWithDepth()
+		if err != nil {
+			log.Fatalf("Error crawling page childs: %s\n", err)
+		}
 		if needsRecrawl {
-			fmt.Print("updating recrawl")
+			fmt.Print("updating url with recrawl")
 			err = db.UpdateLastCrawled(dbConn, res.URL)
 			if err != nil {
 				log.Fatalf("Error trying to update the date on the url %s\n", err)
@@ -85,7 +90,7 @@ func performCrawl(dbConn *sql.DB, urlToCrawl string, depthCrawl int) {
 			}
 		}
 		if res.TextAndLinks != nil {
-			db.EnterNewChilds(dbConn, res)
+			db.EnterNewChilds(dbConn, crawler)
 		}
 	}
 	log.Println("Page was crawled successfuly", res.String())
