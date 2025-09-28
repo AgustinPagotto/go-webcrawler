@@ -59,11 +59,11 @@ func performCrawl(store *db.Store, urlToCrawl string, depthCrawl int) {
 			fmt.Print("needs recrawl")
 			needsRecrawl = true
 		} else {
-			log.Println("Page already crawled successfuly", crawler.String())
+			log.Printf("\nPage already crawled successfuly this is its data: \n %v", crawler.String())
 		}
 	}
 	if crawler == nil || needsRecrawl {
-		crawler := crawl.New(urlToCrawl, depthCrawl, time.Now())
+		crawler := crawl.New(urlToCrawl, depthCrawl, 0, time.Now())
 		err := crawler.Crawl()
 		if err != nil {
 			log.Fatalf("Error crawling page: %s\n", err)

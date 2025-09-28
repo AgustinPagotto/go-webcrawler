@@ -92,6 +92,7 @@ func (s *Store) EnterNewChilds(crawler crawl.Crawler) error {
 func (s *Store) IsUrlOnDb(url string) (*crawl.Crawler, error) {
 	var id, status int
 	var timeCrawled time.Time
+	depth := 0
 	sqlQuery := "SELECT DISTINCT id, status, last_crawled FROM webs_crawled WHERE url = ?;"
 	err := s.db.QueryRow(sqlQuery, url).Scan(&id, &status, &timeCrawled)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -99,7 +100,7 @@ func (s *Store) IsUrlOnDb(url string) (*crawl.Crawler, error) {
 	} else if err != nil {
 		return nil, fmt.Errorf("consult of url in db query failed: %w", err)
 	}
-	crawler := crawl.New(url, status, timeCrawled)
+	crawler := crawl.New(url, depth, status, timeCrawled)
 	sqlQuery = "SELECT DISTINCT url_text, url FROM child_webs WHERE web_crawled_id = ?;"
 	rows, err := s.db.Query(sqlQuery, id)
 	if err != nil {

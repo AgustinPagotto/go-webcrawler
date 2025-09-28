@@ -17,7 +17,7 @@ import (
 
 type Crawler struct {
 	URL              string
-	depth            int
+	Depth            int
 	Status           int
 	TextLinksCrawled map[string]string
 	LastTimeCrawled  time.Time
@@ -28,14 +28,14 @@ type Result struct {
 	InfoCrawled map[string]string
 }
 
-func New(url string, depth int, timeOfCrawl time.Time) *Crawler {
-	p := Crawler{URL: url, TextLinksCrawled: make(map[string]string), depth: depth, LastTimeCrawled: timeOfCrawl}
+func New(url string, depth int, status int, timeOfCrawl time.Time) *Crawler {
+	p := Crawler{URL: url, Status: status, TextLinksCrawled: make(map[string]string), Depth: depth, LastTimeCrawled: timeOfCrawl}
 	return &p
 }
 
 func (c *Crawler) String() string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("  \t %d \t %s", len(c.TextLinksCrawled), c.LastTimeCrawled.String()))
+	b.WriteString(fmt.Sprintf("%s \t %d \t %d \t %s", c.URL, c.Status, len(c.TextLinksCrawled), c.LastTimeCrawled.String()))
 	return b.String()
 }
 
@@ -48,11 +48,12 @@ func (c *Crawler) Crawl() error {
 	c.Status = statusCode
 	c.TextLinksCrawled = crawlResult.InfoCrawled
 	c.LastTimeCrawled = time.Now()
+	fmt.Print("status of crawl", statusCode, c.Status)
 	return nil
 }
 
 func (c *Crawler) CrawlChildrenWithDepth() error {
-	for range c.depth {
+	for range c.Depth {
 		var linksNextDepth []string
 		for _, v := range c.TextLinksCrawled {
 			linksNextDepth = append(linksNextDepth, v)
@@ -84,7 +85,6 @@ func concurrentCrawl(links []string) (map[string]string, error) {
 		results := make(chan Result)
 		go func() {
 			defer close(results)
-			defer fmt.Println("goroutine closed")
 			for {
 				select {
 				case link, ok := <-linkChannel:
@@ -125,6 +125,7 @@ func concurrentCrawl(links []string) (map[string]string, error) {
 	}
 	linkChannel := linkChannelGenerator(ctx, links...)
 	numCrawlers := runtime.NumCPU()
+	fmt.Printf("\nWe are going to create %d number of goroutines to make the crawl concurrent", numCrawlers)
 	crawlersChan := make([]<-chan Result, numCrawlers)
 	for i := range numCrawlers {
 		crawlersChan[i] = crawlerWorker(ctx, linkChannel)
