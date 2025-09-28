@@ -28,14 +28,14 @@ type Result struct {
 	InfoCrawled map[string]string
 }
 
-func New(url string, depth int) *Crawler {
-	p := Crawler{URL: url, TextLinksCrawled: make(map[string]string), depth: depth}
+func New(url string, depth int, timeOfCrawl time.Time) *Crawler {
+	p := Crawler{URL: url, TextLinksCrawled: make(map[string]string), depth: depth, LastTimeCrawled: timeOfCrawl}
 	return &p
 }
 
 func (c *Crawler) String() string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("%s \t %d \t %d \t %s", c.URL, c.Status, len(c.TextLinksCrawled), c.LastTimeCrawled.String()))
+	b.WriteString(fmt.Sprintf("  \t %d \t %s", len(c.TextLinksCrawled), c.LastTimeCrawled.String()))
 	return b.String()
 }
 
@@ -52,9 +52,6 @@ func (c *Crawler) Crawl() error {
 }
 
 func (c *Crawler) CrawlChildrenWithDepth() error {
-	if c.depth <= 1 {
-		return fmt.Errorf("children already in the crawler struct, not further crawl needed")
-	}
 	for range c.depth {
 		var linksNextDepth []string
 		for _, v := range c.TextLinksCrawled {

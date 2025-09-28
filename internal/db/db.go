@@ -4,9 +4,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/AgustinPagotto/go-webcrawler/internal/models"
-	_ "github.com/mattn/go-sqlite3"
 	"time"
+
+	"github.com/AgustinPagotto/go-webcrawler/internal/crawl"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func OpenConToDB() (*sql.DB, error) {
@@ -52,26 +53,26 @@ func InitiateDB(db *sql.DB) error {
 	return nil
 }
 
-func EnterNewUrl(db *sql.DB, pgData *models.PageData) error {
+func EnterNewUrl(db *sql.DB, crawler crawl.Crawler) error {
 	sqlQuery := "INSERT INTO webs_crawled (url, status, last_crawled) VALUES (?,?,?);"
-	_, err := db.Exec(sqlQuery, pgData.URL, pgData.Status, pgData.LastCrawled)
+	_, err := db.Exec(sqlQuery, crawler.URL, crawler.Status, crawler.LastTimeCrawled)
 	if err != nil {
 		return fmt.Errorf("Error trying to insert new url: \n%v", err)
 	}
 	return nil
 }
 
-func EnterNewChilds(db *sql.DB, pgData *models.PageData) error {
+func EnterNewChilds(db *sql.DB, crawler crawl.Crawler) error {
 	var id int
 	sqlQuery := "SELECT DISTINCT id FROM webs_crawled WHERE url = ?;"
-	err := db.QueryRow(sqlQuery, pgData.URL).Scan(&id)
+	err := db.QueryRow(sqlQuery, crawler.URL).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("didn't find the url to put child into: \n%v", err)
 	} else if err != nil {
 		return fmt.Errorf("db query failed: %w", err)
 	}
 	sqlQuery = "INSERT INTO child_webs (web_crawled_id, url_text, url) VALUES (?,?,?);"
-	for url_text, url := range pgData.TextAndLinks {
+	for url_text, url := range crawler.TextLinksCrawled {
 		_, err = db.Exec(sqlQuery, id, url_text, url)
 		if err != nil {
 			return fmt.Errorf("couldn't insert the url: \n%v", err)
@@ -80,7 +81,7 @@ func EnterNewChilds(db *sql.DB, pgData *models.PageData) error {
 	return nil
 }
 
-func IsUrlOnDb(db *sql.DB, url string) (*models.PageData, error) {
+func IsUrlOnDb(db *sql.DB, url string) (*crawl.Crawler, error) {
 	var id, status int
 	var timeCrawled time.Time
 	sqlQuery := "SELECT DISTINCT id, status, last_crawled FROM webs_crawled WHERE url = ?;"
@@ -90,7 +91,7 @@ func IsUrlOnDb(db *sql.DB, url string) (*models.PageData, error) {
 	} else if err != nil {
 		return nil, fmt.Errorf("consult of url in db query failed: %w", err)
 	}
-	pgData := models.NewPageData(url, status, timeCrawled)
+	crawler := crawl.New(url, status, timeCrawled)
 	sqlQuery = "SELECT DISTINCT url_text, url FROM child_webs WHERE web_crawled_id = ?;"
 	rows, err := db.Query(sqlQuery, id)
 	if err != nil {
@@ -100,14 +101,14 @@ func IsUrlOnDb(db *sql.DB, url string) (*models.PageData, error) {
 	for rows.Next() {
 		var urlText, urlLink string
 		if err := rows.Scan(&urlText, &urlLink); err != nil {
-			return pgData, err
+			return crawler, err
 		}
-		pgData.TextAndLinks[urlText] = urlLink
+		crawler.TextLinksCrawled[urlText] = urlLink
 	}
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-	return pgData, nil
+	return crawler, nil
 }
 
 func UpdateLastCrawled(db *sql.DB, url string) error {
@@ -119,10 +120,10 @@ func UpdateLastCrawled(db *sql.DB, url string) error {
 	return nil
 }
 
-func FilterOldChilds(db *sql.DB, pgData *models.PageData) error {
+func FilterOldChilds(db *sql.DB, crawler *crawl.Crawler) error {
 	var id, cont int
 	sqlQuery := "SELECT id FROM webs_crawled WHERE url = ?;"
-	err := db.QueryRow(sqlQuery, pgData.URL).Scan(&id)
+	err := db.QueryRow(sqlQuery, crawler.URL).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("didn't find the url in the db: \n%w", err)
 	} else if err != nil {
@@ -139,9 +140,9 @@ func FilterOldChilds(db *sql.DB, pgData *models.PageData) error {
 		if err := rows.Scan(&urlText, &urlLink); err != nil {
 			return err
 		}
-		if val, ok := pgData.TextAndLinks[urlText]; ok && val == urlLink {
+		if val, ok := crawler.TextLinksCrawled[urlText]; ok && val == urlLink {
 			cont = cont + 1
-			delete(pgData.TextAndLinks, urlText)
+			delete(crawler.TextLinksCrawled, urlText)
 		}
 	}
 	if err = rows.Err(); err != nil {

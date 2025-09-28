@@ -52,48 +52,52 @@ func main() {
 func performCrawl(dbConn *sql.DB, urlToCrawl string, depthCrawl int) {
 	var needsRecrawl bool
 	const recrawlAfter = 1 * 24 * time.Hour
-	res, err := db.IsUrlOnDb(dbConn, urlToCrawl)
-	if res == nil && !errors.Is(err, sql.ErrNoRows) {
+	crawler, err := db.IsUrlOnDb(dbConn, urlToCrawl)
+	if crawler == nil && !errors.Is(err, sql.ErrNoRows) {
 		log.Fatal(err)
 	} else if err != nil {
 		log.Println("the page is not in our DB: ", err)
-	} else if res != nil {
-		if time.Since(res.LastCrawled) > recrawlAfter {
+	} else if crawler != nil {
+		if time.Since(crawler.LastTimeCrawled) > recrawlAfter {
 			fmt.Print("needs recrawl")
 			needsRecrawl = true
+		} else {
+			log.Println("Page already crawled successfuly", crawler.String())
 		}
 	}
-	if res == nil || needsRecrawl {
-		crawler := crawl.New(urlToCrawl, depthCrawl)
+	if crawler == nil || needsRecrawl {
+		crawler := crawl.New(urlToCrawl, depthCrawl, time.Now())
 		err := crawler.Crawl()
 		if err != nil {
 			log.Fatalf("Error crawling page: %s\n", err)
 		}
-		err = crawler.CrawlChildrenWithDepth()
-		if err != nil {
-			log.Fatalf("Error crawling page childs: %s\n", err)
+		if depthCrawl > 1 {
+			err = crawler.CrawlChildrenWithDepth()
+			if err != nil {
+				fmt.Printf("Error crawling page childs: %s\n", err)
+			}
 		}
 		if needsRecrawl {
 			fmt.Print("updating url with recrawl")
-			err = db.UpdateLastCrawled(dbConn, res.URL)
+			err = db.UpdateLastCrawled(dbConn, crawler.URL)
 			if err != nil {
 				log.Fatalf("Error trying to update the date on the url %s\n", err)
 			}
-			err = db.FilterOldChilds(dbConn, res)
+			err = db.FilterOldChilds(dbConn, crawler)
 			if err != nil {
 				log.Fatalf("Error trying to update the date on the url %s\n", err)
 			}
 		} else {
-			err = db.EnterNewUrl(dbConn, res)
+			err = db.EnterNewUrl(dbConn, *crawler)
 			if err != nil {
 				log.Fatalf("Error inserting new url into db: %s\n", err)
 			}
 		}
-		if res.TextAndLinks != nil {
-			db.EnterNewChilds(dbConn, crawler)
+		if crawler != nil {
+			db.EnterNewChilds(dbConn, *crawler)
 		}
+		log.Println("Page was crawled successfuly", crawler.String())
 	}
-	log.Println("Page was crawled successfuly", res.String())
 }
 
 func performSearch(dbConn *sql.DB, searchTerm string) {
