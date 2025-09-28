@@ -2,6 +2,7 @@ package crawl
 
 import (
 	"testing"
+	"time"
 )
 
 func TestCrawlPage(t *testing.T) {
@@ -36,13 +37,14 @@ func TestCrawlPage(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			pageData, err := CrawlPage(tc.input, 1)
+			crawler := New(tc.input, tc.depth, 0, time.Now())
+			err := crawler.Crawl()
 			var errorExistence bool = err != nil
 			if errorExistence != tc.expect_error {
 				t.Errorf("Expected an error, got %v", err)
 			}
-			if pageData != nil {
-				if tc.expect_to_crawl_page && len(pageData.TextAndLinks) < 1 {
+			if crawler.TextLinksCrawled != nil {
+				if tc.expect_to_crawl_page && len(crawler.TextLinksCrawled) < 1 {
 					t.Errorf("Expected to have crawled info %v", err)
 				}
 			}
@@ -55,6 +57,6 @@ var testLinks = []string{"https://httpbin.org/", "https://wikipedia.com", "https
 
 func BenchmarkCrawlPipelineApproach(b *testing.B) {
 	for b.Loop() {
-		ConcurrentCrawl(testLinks)
+		concurrentCrawl(testLinks)
 	}
 }
