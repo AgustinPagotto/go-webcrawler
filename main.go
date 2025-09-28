@@ -33,26 +33,23 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	dbConn, err := db.OpenConToDB()
-	if err != nil {
-		log.Fatalf("Error openning connection to the db: %s\n", err)
-	}
-	err = db.InitiateDB(dbConn)
+	store, err := db.New()
+	err = store.InitiateDB()
 	if err != nil {
 		log.Fatalf("Error adding tables to db: %s\n", err)
 	}
-	defer dbConn.Close()
+	defer store.Close()
 	if searchBool {
-		performSearch(dbConn, searchTerm)
+		performSearch(store, searchTerm)
 	} else {
-		performCrawl(dbConn, urlToCrawl, depthCrawl)
+		performCrawl(store, urlToCrawl, depthCrawl)
 	}
 }
 
-func performCrawl(dbConn *sql.DB, urlToCrawl string, depthCrawl int) {
+func performCrawl(store *db.Store, urlToCrawl string, depthCrawl int) {
 	var needsRecrawl bool
 	const recrawlAfter = 1 * 24 * time.Hour
-	crawler, err := db.IsUrlOnDb(dbConn, urlToCrawl)
+	crawler, err := store.IsUrlOnDb(urlToCrawl)
 	if crawler == nil && !errors.Is(err, sql.ErrNoRows) {
 		log.Fatal(err)
 	} else if err != nil {
@@ -79,32 +76,35 @@ func performCrawl(dbConn *sql.DB, urlToCrawl string, depthCrawl int) {
 		}
 		if needsRecrawl {
 			fmt.Print("updating url with recrawl")
-			err = db.UpdateLastCrawled(dbConn, crawler.URL)
+			err = store.UpdateLastCrawled(crawler.URL)
 			if err != nil {
 				log.Fatalf("Error trying to update the date on the url %s\n", err)
 			}
-			err = db.FilterOldChilds(dbConn, crawler)
+			err = store.FilterOldChilds(crawler)
 			if err != nil {
 				log.Fatalf("Error trying to update the date on the url %s\n", err)
 			}
 		} else {
-			err = db.EnterNewUrl(dbConn, *crawler)
+			err = store.EnterNewUrl(*crawler)
 			if err != nil {
 				log.Fatalf("Error inserting new url into db: %s\n", err)
 			}
 		}
 		if crawler != nil {
-			db.EnterNewChilds(dbConn, *crawler)
+			store.EnterNewChilds(*crawler)
 		}
 		log.Println("Page was crawled successfuly", crawler.String())
 	}
 }
 
-func performSearch(dbConn *sql.DB, searchTerm string) {
+func performSearch(store *db.Store, searchTerm string) {
 	fmt.Println("Performing a search of urls in our database for the word: ", searchTerm)
-	results, err := db.SearchTerm(dbConn, searchTerm)
+	results, err := store.SearchTerm(searchTerm)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
+	}
+	if len(results) == 0 {
+		log.Fatal("No results found in the db")
 	}
 	for _, v := range results {
 		fmt.Println(v)

@@ -160,7 +160,8 @@ func retrieveUrlData(baseUrl *url.URL, tz *html.Tokenizer) (map[string]string, e
 				tokenAttributes := t.Attr
 				for _, value := range tokenAttributes {
 					if value.Key == "href" {
-						anchorUrl, err := url.Parse(value.Val)
+						trimmedUrl := strings.TrimSpace(value.Val)
+						anchorUrl, err := url.Parse(trimmedUrl)
 						if err != nil {
 							fmt.Printf("skipping malformed href: %s\n", err)
 							continue
