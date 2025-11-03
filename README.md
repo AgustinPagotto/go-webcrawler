@@ -28,15 +28,15 @@ go_webcraler is a personal and learn focused project, it's objective is to allow
 Make sure you have **Go 1.22+** installed.
 
 ```bash
-git clone https://github.com/yourusername/confluai-crawler.git
-cd confluai-crawler
-go build -o crawler .
+git clone https://github.com/AgustinPagotto/go-webcrawler.git
+cd go-webcrawler
+go build -o go-webcrawler .
   ```
 ## Usage
 
 Basic command sintax
 ```bash
-./crawler [flags] [url/search]
+./go-crawler [flags] [url/search]
   ```
 Available Flags
 
@@ -48,12 +48,12 @@ Available Flags
 
 Crawl
 ```bash
-./crawler -u https://google.com -d 3
+./go-crawler -u https://google.com -d 3
   ```
 
 Search
 ```bash
-./crawler -s google
+./go-crawler -s google
   ```
 
 ## Benchmarking differents crawling techniques
@@ -78,4 +78,5 @@ BenchmarkCrawlOnePerLink-16 &emsp; 1 &emsp; 1693384338 ns/op &emsp; 1168136 B/op
 [Go]: https://img.shields.io/badge/golang-00ADD8?&style=plastic&logo=go&logoColor=white
 [sqlite-url]: https://sqlite.org/
 [sqlite]: https://img.shields.io/badge/SQLite-07405E?style=flat&compact=true&logo=sqlite&logoColor=white
+
 
